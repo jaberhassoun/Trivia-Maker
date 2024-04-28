@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trivia Maker</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        padding: 0;
+        background: #f4f4f4;
+        color: #333;
+      }
+      table {
+        width: 100%;
+        margin-top: 20px;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 8px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+      }
+      input[type="text"],
+      input[type="number"],
+      textarea {
+        padding: 8px;
+        margin: 5px;
+      }
+      button {
+        padding: 10px 20px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+      .container {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+      }
+      #error_message,
+      #output_code {
+        color: red;
+        margin-top: 10px;
+      }
+      textarea {
+        width: 95%;
+        height: 100px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>(Audio 🎙🎵 Round) Trivia Maker</h1>
+      <div>
+        <label>YouTube Link:</label>
+        <input type="text" id="youtube_link" size="75" />
+        <br />
+        <label>Start Time:</label>
+        <input type="number" id="start_hours" placeholder="Hours" min="0" />
+        <input type="number" id="start_minutes" placeholder="Minutes" min="0" />
+        <input type="number" id="start_seconds" placeholder="Seconds" min="0" />
+        <br />
+        <label>End Time:</label>
+        <input type="number" id="end_hours" placeholder="Hours" min="0" />
+        <input type="number" id="end_minutes" placeholder="Minutes" min="0" />
+        <input type="number" id="end_seconds" placeholder="Seconds" min="0" />
+        <br />
+        <button onclick="addToTable()">Add to List</button>
+        <br />
+      </div>
+      <div id="error_message"></div>
+      <table border="1">
+        <thead>
+          <tr>
+            <th>YouTube Link</th>
+            <th>Start Time (s)</th>
+            <th>End Time (s)</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="entries">
+          <!-- Entries will be inserted here -->
+        </tbody>
+      </table>
+      <br />
+      <button onclick="generateCode()">Generate Code</button>
+      <br />
+      <textarea id="output_code" readonly></textarea>
+    </div>
+
+    <script>
+      function addToTable() {
+        const youtubeLink = document.getElementById("youtube_link").value;
+        const startHours = document.getElementById("start_hours").value || 0;
+        const startMinutes =
+          document.getElementById("start_minutes").value || 0;
+        const startSeconds =
+          document.getElementById("start_seconds").value || 0;
+        const endHours = document.getElementById("end_hours").value || 0;
+        const endMinutes = document.getElementById("end_minutes").value || 0;
+        const endSeconds = document.getElementById("end_seconds").value || 0;
+
+        fetch("/add", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: `youtube_link=${youtubeLink}&start_hours=${startHours}&start_minutes=${startMinutes}&start_seconds=${startSeconds}&end_hours=${endHours}&end_minutes=${endMinutes}&end_seconds=${endSeconds}`,
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.error) {
+              document.getElementById("error_message").innerText = data.error;
+            } else {
+              document.getElementById("error_message").innerText = "";
+              const row = document.createElement("tr");
+              row.innerHTML = `<td>${data.youtube_link}</td><td>${data.start_time}</td><td>${data.end_time}</td><td><button onclick="removeEntry(this)">Remove</button></td>`;
+              document.getElementById("entries").appendChild(row);
+              generateCode(); // Update code whenever a new entry is added
+            }
+          })
+          .catch((error) => console.error("Error:", error));
+      }
+
+      function removeEntry(element) {
+        if (confirm("Are you sure you want to delete this entry?")) {
+          const row = element.parentNode.parentNode;
+          const index = Array.from(row.parentNode.children).indexOf(row);
+          fetch("/remove", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: `index=${index}`,
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              if (data.success) {
+                row.remove();
+                generateCode(); // Update code whenever an entry is removed
+              }
+            })
+            .catch((error) => console.error("Error:", error));
+        }
+      }
+
+      function generateCode() {
+        const entries = document.querySelectorAll("#entries tr");
+        const output = document.getElementById("output_code");
+        if (entries.length === 0) {
+          output.value = "Add some YouTube links first.";
+          return;
+        }
+
+        let code = "<ol>\n";
+        entries.forEach((row) => {
+          const cells = row.getElementsByTagName("td");
+          const link = cells[0].innerText;
+          const startTime = cells[1].innerText;
+          const endTime = cells[2].innerText;
+          const embedUrl = `https://www.youtube.com/embed/${
+            link.split("watch?v=")[1]
+          }?start=${startTime}&end=${endTime}`;
+          code += `  <li><iframe width="560" height="315" src="${embedUrl}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></li>\n`;
+        });
+        code += "</ol>";
+        output.value = code;
+      }
+    </script>
+  </body>
+</html>
